@@ -1,0 +1,25 @@
+{
+  "name": "zendasha-sync",
+  "version": "1.0.0",
+  "description": "Zendesk data sync worker for Zendasha dashboard",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "pg": "^8.13.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
