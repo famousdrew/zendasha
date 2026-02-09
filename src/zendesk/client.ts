@@ -43,7 +43,7 @@ function buildUrl(path: string, params?: Record<string, string>): string {
 }
 
 /**
- * Paginate through a standard Zendesk list endpoint.
+ * Paginate through a Zendesk list endpoint using cursor-based pagination.
  * Yields one page of items at a time.
  */
 export async function* paginate<T>(
@@ -51,7 +51,10 @@ export async function* paginate<T>(
   dataKey: string,
   params?: Record<string, string>
 ): AsyncGenerator<T[]> {
-  let nextPage: string | null = buildUrl(path, params);
+  let nextPage: string | null = buildUrl(path, {
+    ...params,
+    'page[size]': '100',
+  });
 
   while (nextPage) {
     const data: Record<string, any> = await apiRequest(nextPage);
@@ -59,7 +62,7 @@ export async function* paginate<T>(
     if (items && items.length > 0) {
       yield items;
     }
-    nextPage = data.next_page || null;
+    nextPage = data.meta?.has_more ? (data.links?.next || null) : null;
   }
 }
 
