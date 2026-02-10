@@ -68,14 +68,14 @@ interface LayoutItem {
 // No alias
 const EXCL = `
   AND NOT ('csops' = ANY(tags)) AND NOT ('sales' = ANY(tags))
-  AND brand_id NOT IN (SELECT id FROM brands WHERE LOWER(name) LIKE '%csops%')
-  AND (assignee_id IS NULL OR assignee_id NOT IN (SELECT id FROM agents WHERE LOWER(name) LIKE '%csops%'))`;
+  AND brand_id NOT IN (SELECT id FROM brands WHERE LOWER(REPLACE(name, ' ', '')) LIKE '%csops%')
+  AND (assignee_id IS NULL OR assignee_id NOT IN (SELECT id FROM agents WHERE LOWER(REPLACE(name, ' ', '')) LIKE '%csops%'))`;
 
 // With 't' alias
 const tEXCL = `
   AND NOT ('csops' = ANY(t.tags)) AND NOT ('sales' = ANY(t.tags))
-  AND t.brand_id NOT IN (SELECT id FROM brands WHERE LOWER(name) LIKE '%csops%')
-  AND (t.assignee_id IS NULL OR t.assignee_id NOT IN (SELECT id FROM agents WHERE LOWER(name) LIKE '%csops%'))`;
+  AND t.brand_id NOT IN (SELECT id FROM brands WHERE LOWER(REPLACE(name, ' ', '')) LIKE '%csops%')
+  AND (t.assignee_id IS NULL OR t.assignee_id NOT IN (SELECT id FROM agents WHERE LOWER(REPLACE(name, ' ', '')) LIKE '%csops%'))`;
 
 // ── Brand/Agent/Team filter fragments ───────────────────────────────────────
 // These use subquery lookups so users type names, not IDs.
