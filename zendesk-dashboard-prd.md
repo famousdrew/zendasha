@@ -42,9 +42,9 @@ A custom reporting dashboard powered by Metabase, backed by a PostgreSQL data wa
 
 ### Key Architecture Decisions
 
-- [ ] **Sync approach:** Choose between n8n workflow, Node.js cron script on Railway, or dedicated worker service
-- [ ] **Incremental sync strategy:** Use Zendesk's `updated_at` cursor to avoid full table scans on each sync
-- [ ] **Backfill strategy:** Define how to handle initial historical data load
+- [x] **Sync approach:** Node.js cron script on Railway
+- [x] **Incremental sync strategy:** Zendesk incremental export API with `start_time` cursor; cursor-based pagination for list endpoints
+- [x] **Backfill strategy:** 3-month rolling backfill on first run
 
 ---
 
@@ -242,7 +242,7 @@ During sync, scan each ticket's tag array and extract the first matching languag
 |-------|-----------|---------|
 | Data warehouse | PostgreSQL | Railway |
 | Dashboard UI | Metabase (open-source) | Railway |
-| Data sync | TBD (n8n / Node.js cron / worker) | TBD |
+| Data sync | Node.js cron (TypeScript) | Railway |
 | Source API | Zendesk Support API v2 | N/A |
 
 ---
@@ -251,51 +251,53 @@ During sync, scan each ticket's tag array and extract the first matching languag
 
 ### Phase 1: Core Dashboard ← CURRENT
 
-- [ ] **Infrastructure setup**
-  - [ ] Provision PostgreSQL on Railway
-  - [ ] Deploy Metabase on Railway
-  - [ ] Connect Metabase to PostgreSQL
-  - [ ] Set up public URL / auth for Metabase
+- [x] **Infrastructure setup**
+  - [x] Provision PostgreSQL on Railway
+  - [x] Deploy Metabase on Railway
+  - [x] Connect Metabase to PostgreSQL
+  - [x] Set up public URL / auth for Metabase
 
-- [ ] **Data pipeline**
-  - [ ] Design and create database schema (tables, indexes, constraints)
-  - [ ] Build sync script: tickets
-  - [ ] Build sync script: ticket_metrics
-  - [ ] Build sync script: satisfaction_ratings
-  - [ ] Build sync script: agents, groups, brands (dimension tables)
-  - [ ] Implement incremental sync (updated_at cursor)
-  - [ ] Implement initial historical backfill
-  - [ ] Set up hourly cron/schedule
+- [x] **Data pipeline**
+  - [x] Design and create database schema (tables, indexes, constraints)
+  - [x] Build sync script: tickets (incremental export, 56k+ synced)
+  - [x] Build sync script: ticket_metrics (cursor pagination, 72k+ synced)
+  - [x] Build sync script: satisfaction_ratings (cursor pagination, 23k+ synced)
+  - [x] Build sync script: agents, groups, brands (dimension tables)
+  - [x] Implement incremental sync (updated_at cursor)
+  - [x] Implement initial historical backfill (3 months)
+  - [ ] Set up hourly cron/schedule on Railway
   - [ ] Add error handling, logging, and alerting
 
-- [ ] **Dashboard: Productivity view**
-  - [ ] Created vs. solved trending
-  - [ ] Open backlog by age
-  - [ ] Average handle time
-  - [ ] Throughput per agent
-  - [ ] First touch time
+- [x] **Dashboard: Productivity view**
+  - [x] Created vs. solved trending
+  - [x] Open backlog by age
+  - [x] Average handle time
+  - [x] Throughput per agent
+  - [x] First touch time
 
-- [ ] **Dashboard: Quality view**
-  - [ ] CSAT trending
-  - [ ] CSAT by agent
-  - [ ] Negative CSAT drill-down
-  - [ ] Escalation rate
-  - [ ] Reopened ticket rate
+- [x] **Dashboard: Quality view**
+  - [x] CSAT trending
+  - [x] CSAT by agent
+  - [x] Negative CSAT drill-down
+  - [ ] Escalation rate (blocked: escalation definition needed)
+  - [x] Reopened ticket rate
 
-- [ ] **Dashboard: Agent/Team Performance view**
-  - [ ] Agent scorecard table
-  - [ ] Team rollup
+- [x] **Dashboard: Agent/Team Performance view**
+  - [x] Agent scorecard table
+  - [x] Team rollup
   - [ ] Cross-agent comparison charts
 
-- [ ] **Dashboard: SLA Compliance view**
-  - [ ] Breach rate trending
-  - [ ] Breaches by priority
-  - [ ] Near-miss tracking
+- [x] **Dashboard: SLA Compliance view** (proxy metrics — no SLA policy defined yet)
+  - [x] Response time trends (first reply + resolution)
+  - [x] Response times by priority
+  - [ ] Near-miss tracking (blocked: SLA policy definition needed)
 
-- [ ] **Filters & polish**
-  - [ ] Brand filter on all views
-  - [ ] Language filter on all views
-  - [ ] Date range filter on all views
+- [x] **Filters & polish**
+  - [x] Brand filter on all views (by name)
+  - [x] Language filter on all views
+  - [x] Date range filter on all views
+  - [x] Agent filter on Performance view
+  - [x] Team filter on Performance view
   - [ ] Drill-through enabled on charts
   - [ ] Team lead UAT and feedback
 
@@ -316,10 +318,10 @@ During sync, scan each ticket's tag array and extract the first matching languag
 | 1 | Confirm exact language tags used in Zendesk instance | ⬜ Open |
 | 2 | Define how "escalation" is identified (tag, field, group transfer?) | ⬜ Open |
 | 3 | Confirm SLA policy structure and how breach/near-miss is surfaced via API | ⬜ Open |
-| 4 | Choose sync approach (n8n, Node.js cron, worker service) | ⬜ Open |
-| 5 | Determine historical backfill depth (6 months? 1 year? All time?) | ⬜ Open |
-| 6 | Zendesk API rate limits — confirm plan tier and limits for incremental exports | ⬜ Open |
-| 7 | Metabase auth — basic login vs SSO? | ⬜ Open |
+| 4 | Choose sync approach (n8n, Node.js cron, worker service) | ✅ Node.js cron on Railway |
+| 5 | Determine historical backfill depth (6 months? 1 year? All time?) | ✅ 3 months |
+| 6 | Zendesk API rate limits — confirm plan tier and limits for incremental exports | ✅ ~400 req/min, handled with 429 retry |
+| 7 | Metabase auth — basic login vs SSO? | ✅ Basic login for now |
 
 ---
 
@@ -355,3 +357,8 @@ During sync, scan each ticket's tag array and extract the first matching languag
 | 2026-02-08 | No row-level permissions | All leads see all brands; filter-based, not permission-based |
 | 2026-02-08 | Hourly sync frequency | Balances freshness against API load and complexity |
 | 2026-02-08 | Phase 1 excludes QA and WFM | Nice to have, not critical; revisit after core dashboard is stable |
+| 2026-02-08 | Node.js cron on Railway for sync | Simplest option, no extra tools to manage |
+| 2026-02-08 | 3-month backfill depth | Enough for trend analysis without huge initial load |
+| 2026-02-08 | Cursor-based pagination for Zendesk API | Offset pagination capped at 10k records; cursor has no limit |
+| 2026-02-08 | No FK constraints in schema | Keeps sync ordering flexible, suits analytics workload |
+| 2026-02-08 | Metabase dashboards scripted via API | Reproducible setup via `scripts/setup-metabase.ts` |
