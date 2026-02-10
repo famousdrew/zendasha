@@ -62,6 +62,21 @@ interface LayoutItem {
   size_y: number;
 }
 
+// ── Global exclusions ───────────────────────────────────────────────────────
+// Hide automated/non-agent work: csops and sales tagged tickets, csops brand/user
+
+// No alias
+const EXCL = `
+  AND NOT ('csops' = ANY(tags)) AND NOT ('sales' = ANY(tags))
+  AND brand_id NOT IN (SELECT id FROM brands WHERE LOWER(name) LIKE '%csops%')
+  AND (assignee_id IS NULL OR assignee_id NOT IN (SELECT id FROM agents WHERE LOWER(name) LIKE '%csops%'))`;
+
+// With 't' alias
+const tEXCL = `
+  AND NOT ('csops' = ANY(t.tags)) AND NOT ('sales' = ANY(t.tags))
+  AND t.brand_id NOT IN (SELECT id FROM brands WHERE LOWER(name) LIKE '%csops%')
+  AND (t.assignee_id IS NULL OR t.assignee_id NOT IN (SELECT id FROM agents WHERE LOWER(name) LIKE '%csops%'))`;
+
 // ── Brand/Agent/Team filter fragments ───────────────────────────────────────
 // These use subquery lookups so users type names, not IDs.
 
@@ -100,12 +115,12 @@ SELECT "Date", SUM("Created") AS "Created", SUM("Solved") AS "Solved"
 FROM (
   SELECT date_trunc('day', created_at)::date AS "Date", COUNT(*) AS "Created", 0 AS "Solved"
   FROM tickets
-  WHERE 1=1 ${B} ${L} ${DS} ${DE}
+  WHERE 1=1 ${EXCL} ${B} ${L} ${DS} ${DE}
   GROUP BY 1
   UNION ALL
   SELECT date_trunc('day', updated_at)::date AS "Date", 0 AS "Created", COUNT(*) AS "Solved"
   FROM tickets
-  WHERE status IN ('solved', 'closed') ${B} ${L} ${updDS} ${updDE}
+  WHERE status IN ('solved', 'closed') ${EXCL} ${B} ${L} ${updDS} ${updDE}
   GROUP BY 1
 ) sub
 GROUP BY 1 ORDER BY 1`,
@@ -125,7 +140,7 @@ SELECT
 FROM (
   SELECT EXTRACT(EPOCH FROM NOW() - created_at) / 3600 AS age_hours
   FROM tickets
-  WHERE status IN ('new', 'open', 'pending', 'hold') ${B} ${L}
+  WHERE status IN ('new', 'open', 'pending', 'hold') ${EXCL} ${B} ${L}
 ) t
 GROUP BY 1
 ORDER BY MIN(age_hours)`,
@@ -139,7 +154,7 @@ FROM ticket_metrics tm
 JOIN tickets t ON t.id = tm.ticket_id
 WHERE tm.reply_time_calendar_minutes IS NOT NULL
   AND tm.reply_time_calendar_minutes > 0
-  ${tB} ${tL} ${tDS} ${tDE}`,
+  ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}`,
   },
   {
     name: 'Avg Handle Time by Agent',
@@ -153,7 +168,7 @@ JOIN tickets t ON t.id = tm.ticket_id
 JOIN agents a ON a.id = t.assignee_id
 WHERE t.status IN ('solved', 'closed')
   AND tm.full_resolution_time_calendar_minutes IS NOT NULL
-  ${tB} ${tL} ${tDS} ${tDE}
+  ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}
 GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
   },
   {
@@ -166,7 +181,7 @@ SELECT
 FROM tickets t
 JOIN agents a ON a.id = t.assignee_id
 WHERE t.status IN ('solved', 'closed')
-  ${tB} ${tL} ${tDS} ${tDE}
+  ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}
 GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
   },
   {
@@ -180,7 +195,7 @@ FROM ticket_metrics tm
 JOIN tickets t ON t.id = tm.ticket_id
 WHERE tm.reply_time_calendar_minutes IS NOT NULL
   AND tm.reply_time_calendar_minutes > 0
-  ${tB} ${tL} ${tDS} ${tDE}
+  ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}
 GROUP BY 1 ORDER BY 1`,
   },
 ];
@@ -210,7 +225,7 @@ SELECT
 FROM satisfaction_ratings sr
 JOIN tickets t ON t.id = sr.ticket_id
 WHERE sr.score IN ('good', 'bad')
-  ${tB} ${tL} ${srDS} ${srDE}
+  ${tEXCL} ${tB} ${tL} ${srDS} ${srDE}
 GROUP BY 1 ORDER BY 1`,
   },
   {
@@ -229,7 +244,7 @@ FROM satisfaction_ratings sr
 JOIN agents a ON a.id = sr.assignee_id
 JOIN tickets t ON t.id = sr.ticket_id
 WHERE sr.score IN ('good', 'bad')
-  ${tB} ${tL} ${srDS} ${srDE}
+  ${tEXCL} ${tB} ${tL} ${srDS} ${srDE}
 GROUP BY 1 ORDER BY 4 DESC`,
   },
   {
@@ -246,7 +261,7 @@ FROM satisfaction_ratings sr
 JOIN tickets t ON t.id = sr.ticket_id
 LEFT JOIN agents a ON a.id = sr.assignee_id
 WHERE sr.score = 'bad'
-  ${tB} ${tL} ${srDS} ${srDE}
+  ${tEXCL} ${tB} ${tL} ${srDS} ${srDE}
 ORDER BY sr.created_at DESC
 LIMIT 100`,
   },
@@ -263,7 +278,7 @@ SELECT
 FROM tickets t
 JOIN ticket_metrics tm ON tm.ticket_id = t.id
 WHERE t.status IN ('solved', 'closed')
-  ${tB} ${tL} ${tDS} ${tDE}
+  ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}
 GROUP BY 1 ORDER BY 1`,
   },
 ];
@@ -291,7 +306,7 @@ WITH agent_tickets AS (
   FROM tickets t
   LEFT JOIN ticket_metrics tm ON tm.ticket_id = t.id
   WHERE t.status IN ('solved', 'closed')
-    ${tB} ${tL} ${tDS} ${tDE} ${tAgent} ${tTeam}
+    ${tEXCL} ${tB} ${tL} ${tDS} ${tDE} ${tAgent} ${tTeam}
   GROUP BY 1
 ),
 agent_csat AS (
@@ -304,7 +319,7 @@ agent_csat AS (
   FROM satisfaction_ratings sr
   JOIN tickets t ON t.id = sr.ticket_id
   WHERE sr.score IN ('good', 'bad')
-    ${tB} ${tL} ${srDS} ${srDE} ${srAgent} ${srTeam}
+    ${tEXCL} ${tB} ${tL} ${srDS} ${srDE} ${srAgent} ${srTeam}
   GROUP BY 1
 )
 SELECT
@@ -333,7 +348,7 @@ WITH team_tickets AS (
   FROM tickets t
   LEFT JOIN ticket_metrics tm ON tm.ticket_id = t.id
   WHERE t.status IN ('solved', 'closed')
-    ${tB} ${tL} ${tDS} ${tDE} ${tTeam}
+    ${tEXCL} ${tB} ${tL} ${tDS} ${tDE} ${tTeam}
   GROUP BY 1
 ),
 team_csat AS (
@@ -346,7 +361,7 @@ team_csat AS (
   FROM satisfaction_ratings sr
   JOIN tickets t ON t.id = sr.ticket_id
   WHERE sr.score IN ('good', 'bad')
-    ${tB} ${tL} ${srDS} ${srDE} ${srTeam}
+    ${tEXCL} ${tB} ${tL} ${srDS} ${srDE} ${srTeam}
   GROUP BY 1
 )
 SELECT
@@ -382,7 +397,7 @@ FROM tickets t
 JOIN ticket_metrics tm ON tm.ticket_id = t.id
 WHERE tm.reply_time_calendar_minutes IS NOT NULL
   AND tm.reply_time_calendar_minutes > 0
-  ${tB} ${tL} ${tDS} ${tDE}
+  ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}
 GROUP BY 1 ORDER BY 1`,
   },
   {
@@ -397,7 +412,7 @@ SELECT
 FROM tickets t
 JOIN ticket_metrics tm ON tm.ticket_id = t.id
 WHERE tm.reply_time_calendar_minutes IS NOT NULL
-  ${tB} ${tL} ${tDS} ${tDE}
+  ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}
 GROUP BY 1
 ORDER BY CASE t.priority
   WHEN 'urgent' THEN 1 WHEN 'high' THEN 2
