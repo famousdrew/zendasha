@@ -4,6 +4,7 @@ import { syncAgents } from '../zendesk/agents';
 import { syncTickets } from '../zendesk/tickets';
 import { syncTicketMetrics } from '../zendesk/ticket-metrics';
 import { syncSatisfactionRatings } from '../zendesk/satisfaction-ratings';
+import { syncFirstPendingTimes } from '../zendesk/ticket-events';
 
 interface SyncResult {
   entity: string;
@@ -40,6 +41,7 @@ export async function runFullSync(): Promise<SyncResult[]> {
     { name: 'tickets', fn: syncTickets },
     { name: 'ticket_metrics', fn: syncTicketMetrics },
     { name: 'satisfaction_ratings', fn: syncSatisfactionRatings },
+    { name: 'ticket_events (first_pending_at)', fn: syncFirstPendingTimes },
   ];
 
   for (const { name, fn } of coreSyncs) {

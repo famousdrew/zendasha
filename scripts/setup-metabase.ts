@@ -157,17 +157,16 @@ WHERE tm.reply_time_calendar_minutes IS NOT NULL
   ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}`,
   },
   {
-    name: 'Avg Handle Time by Agent',
+    name: 'Time to First Pending by Agent',
     display: 'bar',
     sql: `
 SELECT
   a.name AS "Agent",
-  ROUND(AVG(tm.full_resolution_time_calendar_minutes) / 60, 1) AS "Avg Handle Time (hrs)"
-FROM ticket_metrics tm
-JOIN tickets t ON t.id = tm.ticket_id
+  ROUND(AVG(EXTRACT(EPOCH FROM (t.first_pending_at - t.created_at)) / 3600), 1) AS "Avg Time to Pending (hrs)"
+FROM tickets t
 JOIN agents a ON a.id = t.assignee_id
 WHERE t.status IN ('solved', 'closed')
-  AND tm.full_resolution_time_calendar_minutes IS NOT NULL
+  AND t.first_pending_at IS NOT NULL
   ${tEXCL} ${tB} ${tL} ${tDS} ${tDE}
 GROUP BY 1 ORDER BY 2 DESC LIMIT 20`,
   },
@@ -301,7 +300,7 @@ WITH agent_tickets AS (
   SELECT
     t.assignee_id,
     COUNT(*) AS solved,
-    ROUND(AVG(tm.full_resolution_time_calendar_minutes) / 60, 1) AS avg_handle_hrs,
+    ROUND(AVG(EXTRACT(EPOCH FROM (t.first_pending_at - t.created_at)) / 3600), 1) AS avg_pending_hrs,
     ROUND(100.0 * COUNT(*) FILTER (WHERE tm.reopens > 0) / NULLIF(COUNT(*), 0), 1) AS reopen_pct
   FROM tickets t
   LEFT JOIN ticket_metrics tm ON tm.ticket_id = t.id
@@ -326,7 +325,7 @@ SELECT
   a.name AS "Agent",
   g.name AS "Team",
   at.solved AS "Solved",
-  at.avg_handle_hrs AS "Avg Handle Time (hrs)",
+  at.avg_pending_hrs AS "Time to Pending (hrs)",
   ac.csat_pct AS "CSAT %",
   at.reopen_pct AS "Reopen %"
 FROM agent_tickets at
@@ -343,7 +342,7 @@ WITH team_tickets AS (
   SELECT
     t.group_id,
     COUNT(*) AS solved,
-    ROUND(AVG(tm.full_resolution_time_calendar_minutes) / 60, 1) AS avg_handle_hrs,
+    ROUND(AVG(EXTRACT(EPOCH FROM (t.first_pending_at - t.created_at)) / 3600), 1) AS avg_pending_hrs,
     ROUND(100.0 * COUNT(*) FILTER (WHERE tm.reopens > 0) / NULLIF(COUNT(*), 0), 1) AS reopen_pct
   FROM tickets t
   LEFT JOIN ticket_metrics tm ON tm.ticket_id = t.id
@@ -367,7 +366,7 @@ team_csat AS (
 SELECT
   g.name AS "Team",
   tt.solved AS "Solved",
-  tt.avg_handle_hrs AS "Avg Handle Time (hrs)",
+  tt.avg_pending_hrs AS "Time to Pending (hrs)",
   tc.csat_pct AS "CSAT %",
   tt.reopen_pct AS "Reopen %"
 FROM team_tickets tt
