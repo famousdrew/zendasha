@@ -31,12 +31,14 @@ export async function syncFirstPendingTimes(): Promise<number> {
   }
 
   let count = 0;
+  let pages = 0;
   let lastEndTime = startTime;
 
   for await (const { items, endTime } of incrementalExport<TicketEvent>(
     '/api/v2/incremental/ticket_events.json',
     'ticket_events',
-    startTime
+    startTime,
+    500 // throttle: 500ms between pages to avoid rate limits on this high-volume endpoint
   )) {
     for (const event of items) {
       const pendingChange = event.child_events?.find(
@@ -56,8 +58,9 @@ export async function syncFirstPendingTimes(): Promise<number> {
     }
 
     lastEndTime = endTime;
-    if (count > 0 && count % 1000 === 0) {
-      console.log(`  Processed ${count} pending events so far...`);
+    pages++;
+    if (pages % 50 === 0) {
+      console.log(`  Page ${pages}: ${count} pending events found so far (cursor at ${new Date(endTime * 1000).toISOString()})...`);
     }
   }
 

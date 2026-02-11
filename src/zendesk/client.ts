@@ -73,7 +73,9 @@ export async function* paginate<T>(
 export async function* incrementalExport<T>(
   path: string,
   dataKey: string,
-  startTime: number
+  startTime: number,
+  /** Delay between pages in ms — helps avoid rate limits on high-volume endpoints */
+  throttleMs: number = 0
 ): AsyncGenerator<{ items: T[]; endTime: number }> {
   let nextPage: string | null = buildUrl(path, {
     start_time: startTime.toString(),
@@ -94,6 +96,10 @@ export async function* incrementalExport<T>(
     }
 
     nextPage = data.next_page || null;
+
+    if (nextPage && throttleMs > 0) {
+      await sleep(throttleMs);
+    }
   }
 }
 
